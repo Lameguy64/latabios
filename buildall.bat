@@ -1,15 +1,12 @@
 @echo off
 
-nasm -f bin -DSENSIBLE -o lata_s.bin latabios.asm
-romfixup lata_s.bin
+nasm -f bin -DTARGET_XT -DBOOTLOADER -l lata_xti.lst -o lata_xti.bin latabios.asm
+romfixup lata_xti.bin
 
-nasm -f bin -DSENSIBLE -DBOOTLOADER -o lata_sb.bin latabios.asm
-romfixup lata_sb.bin
+nasm -f bin -DSINGLE_DRV -DBOOTLOADER -l latasens.lst -o latasens.bin latabios.asm
+romfixup latasens.bin
 
-nasm -f bin -o latabios.bin latabios.asm
+nasm -f bin -DBOOTLOADER -l latabios.lst -o latabios.bin latabios.asm
 romfixup latabios.bin
 
-nasm -f bin -DBOOTLOADER -o lata_b.bin latabios.asm
-romfixup lata_b.bin
-
-kzip /y labio100.zip license readme.txt latabios.bin lata_b.bin lata_s.bin lata_sb.bin
+kzip /y labio101.zip license readme.txt latabios.bin latasens.bin lata_xti.bin

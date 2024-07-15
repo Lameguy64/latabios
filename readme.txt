@@ -10,142 +10,206 @@
 		    |________________________________|
 
 L-ATA Fixed Disk Support BIOS by John "Lameguy" Wilbert Villamor
-2022 Meido-Tek Productions - Released under MPLv2
+2022-24 Meido-Tek Productions - Released under MPLv2
+Version 1.01
 
 
 Table of Contents
 
     1. Introduction
     2. Installation
-	2.1. Note for 386+ Users
-    3. Compatibility
+        2.1. Installing on PC/AT Systems
+	2.2. Installing on PC/XT Systems
+	2.3. L-ATA Builds
+	2.4. Note for 386+ Users
+    3. Compatibility & Internal Operation
 	3.1. Workspace Storage
 	3.2. ATA Drive Compatibility
 	3.3. Disk BIOS Implementation Table
-	3.4. Incompatible Systems
+	3.4. Incompatible Systems & Software
     4. Sector Translation
-    5. References and Acknowledgements
-    6. File Contents
+    5. Version History
+    6. References and Acknowledgements
 
 
 1. Introduction
 
-    L-ATA, short for Lame-AT Attachment,  is option ROM software that adds en-
-    hanced support for ATA fixed disk drives  to  any  PC/AT compatible system
-    equipped with a 80286 or newer processor. L-ATA not only offers hard drive
-    auto-detection and support for up to four ATA channels,  but also provides
-    sector translation to support drive capacities greater than 504 megabytes-
-    allowing to address up to 8,032 megabytes  using the standard INT 13h disk
-    interfaces.
+    L-ATA, short for Lame-AT Attachment, is an option ROM for adding enhanced
+    support for ATA disk drives to both PC/XT and PC/AT compatible platforms-
+    to be able to use more conventional ATA disks (including CompactFlash) on
+    these older platforms.
+  
+    L-ATA not only adds full ATA disk support with automatic drive detection,
+    but also disk capacities greater than 504 megabytes through sector trans-
+    lation- it can map drives up to a maximum of 8,032 megabytes, the maximum
+    imposed by the upper limit of INT 13h.
+
+    L-ATA offers excellent system compatibility  by  means of proper software
+    implementation- it functions not too dissimilar to the boot ROM of a SCSI
+    or ESDI host adapter and has exhibited a great deal of compatibility with
+    many BIOS vendors- clone or otherwise.
     
-    This software is intended  for upgrading older 80286 and 386 systems which
-    do not support ATA drives or are constrained by hard-coded drive parameter
-    tables.  L-ATA addresses  this  problem by augmenting the system BIOS with
-    L-ATA's own disk BIOS in a manner similar to that of an option ROM present
-    on SCSI or ESDI host adapters.  The ATA drives detected by L-ATA appear as
-    ordinary fixed disk drives to any operating system.
+    This ROM software is intended for  use  on  PC/XTs and early PC/AT systems
+    that predated support for custom drive parameters in the CMOS setup- or to
+    upgrade a 386 or early 486 system to be able to use drive capacities grea-
+    ter than 504 megabytes.
     
    
 2. Installation
 
-    L-ATA is meant to be installed  as an option ROM starting at address C8000
-    or higher. This is easily accomplished by means of a programmable ROM chip
-    and a Network Interface Card.  The ATA interface itself can be provided by
-    any 16-bit Multi I/O board.  In some cases the IDE interface  of  a  sound
-    card is sufficient provided the interface is configured using jumpers  and
-    not by software.
-
-    When using a sound card,  make  sure  the  IDE  interface  is  set  to the
-    following resources.  If  hard  disks are not being detected properly make
-    sure an IOCHRDY or IORDY jumper is set.
-
-	Port 1F0h IRQ 14 (Primary)
-	Port 170h IRQ 15 (Secondary)
-	Port 168h IRQ 10 (Tertiary)
-	Port 1E8h IRQ 11 (Quaternary)
-
-    The first ATA drive found will  be  used  as  the boot drive regardless of
-    channel. However, protected mode  operating  systems  may fail if the boot
-    drive is not connected to the first two ATA channels.
-
-    L-ATA is provided in two versions; the 'normal' version and the 'sensible'
-    version, the latter of which is indicated by an '-S' suffix on the version
-    number.  The 'sensible' version differs  in  that  only one ATA channel is
-    supported to allow the BIOS' work  area to be stored immediately after the
-    BIOS Data Area, but this may provide better compatibility on some systems.  
-    The normal version with quad ATA  channel support uses the normally unused
-    first-half of the BIOS stack area.  Both versions  are  also provided with
-    either a bootloader included or not.  The bootloader equipped variation is
-    required for older systems which  do not boot the hard drive and expects a
-    disk BIOS to provide a hard disk aware bootloader.
-
-    Make sure that no fixed disk drives  are  defined in the CMOS settings, or
-    else L-ATA will refuse to install as it may cause superfluous issues which
-    may cause software to fail.
-
-
-  2.1. Note for 386+ Users
-
-    On 386 and newer systems,  memory between C8000 to EFFFF normally reserved
-    for Option ROMs and memory mapped peripherals  can  be  reclaimed as extra
-    memory known as Upper Memory Blocks (UMBs)  by  using a 386 memory manager
-    such as EMM386. UMBs are most commonly used for device drivers and TSR
-    software to free more conventional memory to applications.
+    L-ATA is option ROM software and requires a programmable ROM chip  (EPROM
+    or EEPROM,  ideally 64 to 256kbit) and accompanying programmer to install
+    for both PC/XT or PC/AT.
     
-    When an option ROM is installed, part of this memory space will be used by
-    the option ROM itself  and  cannot be reclaimed as upper memory.  Start-up
-    files may require changes for pre-existing  installations after the system
-    has been upgraded with L-ATA.
+    Once burned the most inexpensive method  of  installing the ROM is to use
+    an Ethernet adapter- which often feature a socket for an RPL ROM.
+    
+    ROMs attached to this socket usually appear  as standard adapter ROMs and
+    is what L-ATA needs for installation. The ROM is either configurable with
+    jumpers or in software with a configuration utility depending on adapter.
+    In any case,  L-ATA should be mapped at address C8000 and other disk rel-
+    ated option ROMs from SCSI controllers should be disabled,  if the system
+    has any.
+    
+    The type of programmable ROM to use for this installation also depends on
+    the Ethernet adapter  to  be used- very old ones may lack bus buffers and
+    would simply not work or prevent the system from working altogether if an
+    EEPROM is used- older UV-erasable EPROMs  or  PROMs should be used on the
+    older adapters instead.
+
+    Worth noting that using ROM sizes smaller  than what is actually install-
+    ed, perhaps an attempt to save UMB space, may not work properly, and keep
+    in mind that unused parts of the ROM are still usable for UMBs-  at least
+    for 386s.
 
 
-3. Compatibility
+  2.1. Installing on PC/AT Systems
 
-    L-ATA has been tested mostly against clone systems equipped with  a  clone
-    BIOS from vendors such as American Megatrends, Award Software, Quadtel and
-    Microid Research to name a few, in which L-ATA has displayed a high degree
-    of compatibility.
+    The 16-bit 'sensible' and standard builds of L-ATA  must  be used to take
+    advantage of the 16-bit data bus. L-ATA can run with ROM shadowing on 386
+    systems to gain  a  small performance improvement, especially when sector
+    translation is being employed.
+
+    L-ATA works with standard ATA interfaces provided  by  Multi-I/O cards or
+    the system board itself.  Sometimes the IDE interface on a sound card can
+    be used for hard disks despite being intended for CD-ROM drives, but this
+    method *will* work provided it is configured using jumpers and not  by  a
+    software driver- which most of them are.
+
+    The standard L-ATA ROM tests the following resources for hard drives, the
+    standard one only tests the primary channel (alternate ports are included
+    for reference in case of hardware conflicts):
+
+	Port 1F0-1F7h, 3F6-3F7h IRQ 14 (Primary)
+	Port 170-1F7h, 376-377h IRQ 15 (Secondary)
+	Port 168-16Fh, 36E-36Fh IRQ 10 (Tertiary)
+	Port 1E8-1EFh, 3EE-3EFh IRQ 11 (Quaternary)
+
+    The first ATA drive discovered will be used as disk 0 regardless of which
+    channel it was found.  However,  protected mode operating systems that do
+    not use INT 13h may fail if the boot  drive is not connected to the first
+    two ATA channels (see 3.4. Incompatible Systems & Software).
+
+
+  2.2. Installing on PC/XT Systems
+
+    The 8-bit 'XTI' build of L-ATA must  be  used for PC/XTs when used with a
+    XT-IDE compatible adapter.
+
+    Apart from which build of L-ATA  to  use,  installation on PC/XTs differs
+    entirely on the interface. Since PC/XTs generally use 8088s and therefore
+    only have 8-bit ISA slots, but the ATA interface requires  a  16-bit data
+    bus for the data port- a special interface adapter is required.
+
+    Currently L-ATA supports 'XT-IDE' compatible methods with the 'XTI' build
+    (see section 2.2 for details). Currently L-ATA is hard wired to test only
+    port 300h for drives and hardware interrupts are not used  (because soft-
+    ware emulators did not implement it),  but this can be  adjusted  in  the
+    assembler source.
+    
+
+  2.2. L-ATA Builds
+
+    The L-ATA pre-built archive includes three variations;  the standard ver-
+    sion which includes quad ATA support, the 'sensible' version with support
+    for only a single ATA channel and the  'XTI'  version for use with PC/XTs
+    with an XT-IDE adapter.
+
+    Additional variations  to  fit  very specific configurations can be built
+    from the L-ATA assembler source.
+
+    Since version 1.01 all three variations include a bootloader.
+
+
+  2.3. Note for 386+ Users
+
+    On 386 and newer systems, unused portions of the adapter space  (the last
+    384K of the first 1MB of memory) is  often reclaimed as system memory for
+    use as Upper Memory Blocks or UMBs, typically provided by an expanded me-
+    mory manager such as EMM386.
+
+    As L-ATA appears as an option ROM it  occupies some of this adapter space
+    for itself-  reducing available UMBs by 4KB (the present size of the ROM)
+    even when the ROM mapped is larger thanks  to  ROM shadowing supported by
+    most later 386 boards. This results in a reduction of UMB memory and TSRs
+    may end up loading in conventional memory when upgrading an existing sys-
+    tem with L-ATA.
+
+
+3. Compatibility & Internal Operation
+
+    L-ATA has been tested mostly against clone  systems  equipped  with  BIOS
+    software from vendors  as  American Megatrends,  Award Software,  Quadtel
+    and Microid Research to name a few,  to  which L-ATA has displayed a high
+    degree of compatibility with.
 
 
   3.1. Workspace Storage
 
-    L-ATA stores its internal variables and parameter tables on memory address
-    0030:0000 or 00300 which points to the unused first-half of the BIOS stack
-    area worth 256 bytes, but  only  the last 128 bytes is actually used. As a
-    result no amount of conventional memory has been effectively used by L-ATA
-    to operating systems. User-specified  drive  parameters are stored in this
-    area on AMI BIOS.
+    Standard L-ATA stores its internal variables and parameter tables on mem-
+    ory address 0030:0000 or 00300, using  the  unused half of the BIOS stack
+    area of 256 bytes. As a result, no amount of precious conventional memory
+    has been reserved to L-ATA from operating systems. AMI BIOS  also  stores
+    its user-specified drive parameters this area as well.
 
-    For the sensible version,  the variables  and  parameter tables are stored
-    just immediately  after  the  BIOS Data Area  at  address 0030:01E0 or the
-    equivalent memory address of 0040:00E0 occupying 19 bytes.  As a result of
-    using a much smaller work area this version only supports one ATA channel,
-    but may offer better compatibility for some OEM systems. The sensible ver-
-    sion still provides sector translation  to  support drives larger than 504
-    megabytes.
-    
-    To ensure  that  software  does  not  overwrite the internal tables during
-    operation- which may result  in  data corruption upon further disk access,
-    L-ATA performs a checksum test of the internal tables on every disk access
-    operation.  An 'INTERNAL TABLES TAINTED' screen  is  invoked if the tables
-    have been corrupted to prevent damage to data on the drives.
+    For both 'sensible' and 'XTI' versions,  internal variables and parameter
+    tables are stored just after the BIOS Data Area at address 0030:01E0,  or
+    the equivalent memory address of 0040:00E0,  occupying 19 bytes.  Due  to
+    the smaller work area this version  only supports  a  single ATA channel,
+    but may provide better compatibility on some OEM systems that use more of
+    the BIOS stack area,  or  have  special hardware mapped to I/O ports that
+    happen to conflict with extra ATA channels.
+
+    To ensure  that  software  does  not overwrite the internal tables during
+    operation  which  may result in data corruption upon further disk access,
+    L-ATA performs a checksum test of the internal tables for every disk ope-
+    ration.  An 'INTERNAL TABLES TAINTED' screen is invoked if the tables are
+    found  to  be corrupted in the next disk access to prevent damage to data
+    on the drives.
 
 
   3.2. ATA Drive Compatibility
 
-    L-ATA only supports ATA drives that recognizes the IDENTIFY command as the
-    software relies on auto-detection.  Older drives which do not support this
-    command will not work with L-ATA,  but such a drive would have to be early
-    enough to have a suitable drive type entry in the system BIOS.
+    L-ATA relies on the IDENTIFY command to obtain parameters of the attached
+    drives- older drives predating the official ATA specification may not im-
+    plement the IDENTIFY command and therefore, will not work with L-ATA. But
+    such an old drive should have a type entry in the fixed parameter tables.
 
-    L-ATA will not work with XTA drives or ATA interfaces on a 8-bit data bus.
-    The ATA interface must be present with a 16-bit data interface.
+    However,  some hard drives have been found to exhibit quirks when used as
+    a slave drive- some IBM Travelstar drives meant  for  laptops inherit the
+    CHS parameters of the master drive, even when the parameters yield a cap-
+    acity much greater than the drive is rated for.  This  is  unlikely a bug
+    with L-ATA as it was able to obtain the correct model string from the
+    drive, and this appears right after the CHS parameter fields.
 
 
   3.3. Disk BIOS Implementation Table
 
-    L-ATA implements most of the INT 13h functions as supported by the IBM MFM
-    Fixed Disk Controller.  The table below lists the implementation level for
-    each function number.
+    L-ATA implements most of the INT 13h functions  as  supported by the ori-
+    ginal hard disk controller for the PC; the IBM MFM Fixed Disk Controller.
+    
+    Only functions applicable to the PC/AT platform are implemented.
+    The table below lists each function and their implementation level.
 
     +-------------------------------------------------------------------+
     | Func. | Status | Description					|
@@ -173,7 +237,7 @@ Table of Contents
     |  14H  |   N    | Controller diagnostic (XT only)			|
     +-------------------------------------------------------------------+
     | N  - Not implemented, returns bad response (CF=1, AH=01H)		|
-    | D  - Dummy implementation, returns good response (CF=0, AH=00H)	|
+    | D  - Dummy implementation- returns good response (CF=0, AH=00H)	|
     | Y  - Implemented							|
     | Y+ - Implemented, required by MS-DOS				|
     +-------------------------------------------------------------------+
@@ -182,63 +246,129 @@ Table of Contents
     for documentation regarding the usage of the above functions calls.
 
 
-  3.4. Incompatible Systems
+  3.4. Incompatible Systems & Software
 
-    Currently, only one machine is found to exhibit problems with L-ATA.
+    Only two things have been found to be incompatible with L-ATA so far;
 
     * Toshiba T3200SX (with ROM 3C BIOS)
 
-      Starting Windows for Workgroups with networking installed crashes with a
-      black screen or returns back to MS-DOS,  but after showing the 'INTERNAL
-      TABLES TAINTED' screen  for  a  very brief period.  Disabling networking
-      solves this problem.
+      Starting Windows for Workgroups 3.11 with networking installed using an
+      NE2000 compatible Ethernet adapter  would  either exit to MS-DOS during
+      start-up, or crash with a black screen-  but  not  before  invoking the
+      'INTERNAL TABLES TAINTED' message for a split second.
+      
+      It is not yet known if this problem still occurs when using a different
+      Ethernet adapter,  but WfW 3.11 with networking has been tested to work
+      properly with L-ATA- albeit with a different adapter and system.
+
+    * Drives translated by L-ATA will  not  work  properly on early protected
+      mode operating systems that  bypass  the  BIOS,  such  as  OS/2 1.3 and
+      Novell Netware 286 and 386.
+
+      A workaround is to assemble  a  build of L-ATA with the  'NO_TRANSLATE'
+      preprocessor definition set- this disables sector translation and mere-
+      ly caps the cylinder count  for  drives larger than 504MB.  Conversely,
+      only the first first 504MB of the drive may be usable.
 
 
 4. Sector Translation
 
-    Sector translation is a workaround  for  supporting drives larger than 504
-    megabytes.  Because the  INT 13h  functions have a 1024 cylinder limit yet
-    supports up to 256 heads, and ATA drives could only address up to 16 heads
-    by design of the ATA interface.  To support more cylinders requires trans-
-    lation of the additional cylinders into additional heads, in which the INT
-    13h interfaces do support.
+    Sector translation is a workaround  for  supporting  drives larger than 504
+    megabytes through the  INT 13h  BIOS interface.  Because INT 13h has a 1024
+    cylinder limit yet supports up to  256 heads,  but  the  ATA interface only
+    supports addressing 16 heads-  to support drives  with  more cylinders than
+    what is supported by INT 13h requires translation  of  the additional
+    cylinders into additional heads.
 
-    The new geometry for sector translation  is  determined by multiplying the
-    head count until the resulting cylinder count is reduced to 1024 cylinders
-    or less. The new cylinder count is obtained from the total track count (by
-    multiplying the cylinder  count  with  the  head  count)  and dividing the
-    result with the new head count. Naturally these translated coordinates are
-    translated back to the drive's actual reported geometry for disk I/O.
+    The new geometry for sector translation  is  determined by first obtaining
+    the total track count from multiplying  the head count with the cylinders.
+    Next,  the head count is initially multiplied by a factor of 2 and the re-
+    sult is then used to obtain the new cylinder count from dividing the total
+    track count.  If the result is not less than 1152 cylinders  (threshold is
+    adjustable in source), the head count is  multiplied further with an in-
+    crementing factor until either the resulting cylinders falls within the
+    threshold, or the head count has maxed out at 255.
 
-    A drive which reports the following parameters:
+    The following describes the above description as BASIC-like pseudo-code:
+
+        total_cylinders = heads * cylinders
+	mulfactor = 2
+
+	repeat:
+
+	new_heads = heads * mulfactor
+	if new_heads > 255 then new_heads = 255
+
+	new_cylinders = total_cylinders / heads
+
+	if new_cylinders > 1152 then
+	    if new_heads < 255 then
+		mulfactor = mulfactor + 1
+		goto repeat
+	    end if
+	end if
+
+    For example, a drive that reports the following disk parameters:
 
 	1532 cylinders, 15 heads, 63 sectors
 
-    Will be translated to software using INT 13h interfaces as:
+    Is translated to the following parameters for INT 13h:
 
 	766 cylinders, 30 heads, 63 sectors
 
+    Naturally disk coordinates that correspond  to these translated geometries
+    are internally translated back to 'native' coordinates of the drive-  this
+    process occurs completely transparent to software using INT 13h.
 
-5. References and Acknowledgements
 
-    The L-ATA BIOS was developed using technical references such as the
-    official ASC X3 document 791D "AT Attachment Interface for Disk Drives
-    Revision 4C" (d0791r4c.pdf), the "IBM XT Fixed Disk Adapter" (IBM document
-    6139790) and Ralph Brown's Interrupt List at http://ctyme.com/rbrown.htm
+5. Version History
 
-    L-ATA was developed without direct involvement of any "mainstream" group
-    or community, with all testing conducted internally and independently. No
-    source code of other similar solutions have been used as reference for
-    the development of L-ATA and is therefore a completely from-scratch work.
+    1.00    * Initial version.
 
-    Thanks to HighTreason610 for assisting in testing L-ATA on a number of
-    much older machines, including systems where other, more popular solutions
-    have been found to cause problems.
+
+    1.01    * Added XT support through XT-IDE style I/O on port 300h without
+	      hardware interrupts- dubbed with an '-XTI' suffix, but not yet
+	      tested on real hardware. Interrupts supported but optional.
+
+	    * Removed DEBRAND build option as anyone desiring to plagiarize
+	      this work or 'for appropriation' can just as easily edit the
+	      strings anyway- string sections become messy with preprocessors
+	      otherwise.
+
+	    * Added NO_TRANSLATE preprocessor definition to disable disk
+	      sector translation- limiting the disk BIOS to 504MB.
+
+	    * Added CRLF after the 'Device Scan Complete' message- inserting
+	      a space between the disk BIOS and operating system messages if
+	      the system BIOS doesn't clear the  screen after running option
+	      ROMs.
+
+	    * Fixed detection problems when a CD-ROM drive is present on any
+	      ATA channel.
+
+
+6. References and Acknowledgements
+
+    The L-ATA BIOS was developed using  official technical references as ASC
+    X3  Document  791D "AT Attachment Interface for Disk Drives Revision 4C"
+    (d0791r4c.pdf), the "IBM XT Fixed Disk Adapter" (IBM document #6139790).
+
+    Ralph Brown's Interrupt List at http://ctyme.com/rbrown.htm was also used
+    for the BIOS interfaces of L-ATA.
+
+    L-ATA was developed "from scratch" with  no involvement from "mainstream"
+    online communities-  no line of code or reverse engineering of other sol-
+    utions have been lifted from  or  referred  to  during the development of
+    L-ATA.
+
+    Thanks to HighTreason610 for testing L-ATA on a number of older machines,
+    including ones where  'mainstream'  solutions  have been found to exhibit
+    severe problems.
 
     Despite not having a page dedicated to the L-ATA project, the rest
     of Lameguy's material can be found at http://lameguy64.net
 
-    L-ATA BIOS Project page:
+    L-ATA BIOS Project Repository:
 
 	    https://github.com/lameguy64/latabios
 

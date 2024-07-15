@@ -54,7 +54,7 @@ ResetATA:
 	OUT	DX,AL
 	MOV	DX,[BP+.baseIO]		; Get alternate status register
 	ADD	DX,ATA_CT_ASTAT
-	MOV	CX,15			; Delay 400ns by reading port 15 times
+	MOV	CX,60			; Delay by reading port multiple times
 .resetwait:
 	IN	AL,DX
 	LOOP	.resetwait
@@ -63,10 +63,12 @@ ResetATA:
 	SUB	AL,AL			; Clear SRST bit
 	OUT	DX,AL
 ;-----	Post reset
+%if 0
 	MOV	AH,086H			; Delay 256 just in case
 	MOV	CX,001H
 	SUB	DX,DX
 	INT	015H
+%endif
 	POP	CX
 	POP	DX
 	POP	AX
@@ -108,6 +110,7 @@ ResetATA:
 ;								:
 ; Returns:							:
 ;	DX	Base I/O address of ATA channel			:
+;	CF	Set on open-bus (ie. no disk)			:
 ;---------------------------------------------------------------:
 SetCHS:
 .head	EQU -1
@@ -124,28 +127,32 @@ SetCHS:
 	ADD	DX,ATA_DHEAD		; Adjust to drive/head register
 	MOV	AL,[BP+.head]		; Get head value
 	AND	AL,0FH			; Mask off upper 4-bits just in case
-	OR	AL,0A0H
+	OR	AL,0A0H			; Set unused bits of register
 	MOV	AH,ES:PORT_OFF		; Get current disk number
 	AND	AH,01H			; Mask out channel number
+%ifndef TARGET_XT
 	SHL	AH,4			; Shift lone bit to drive select
+%else
+	SHL	AH,1
+	SHL	AH,1
+	SHL	AH,1
+	SHL	AH,1
+%endif	; TARGET_XT
 	OR	AL,AH
+	OUT	DX,AL			; Set new drive/head select value
 	OUT	DX,AL			; Set new drive/head select value
 	MOV	AH,AL			; Save register value
 ;-----	Drive select delay
 	ADD	DX,ATA_STAT-ATA_DHEAD
 	PUSH	CX
-	MOV	CX,15			; Loop 15 times
+	MOV	CX,16			; Loop 16 times
 .dseldelay:
 	IN	AL,DX			; Read alternate status register
 	LOOP	.dseldelay		; ... as a crude delay
 	POP	CX
-	ADD	DX,ATA_DHEAD-ATA_STAT
-	MOV	AL,AH			; Restore register value
-	OUT	DX,AL			; Set register twice just to make sure
-.skipdelay:
 ;-----	Set sector count, number and cylinders
-	ADD	DX,ATA_FEAT-ATA_DHEAD	
-	MOV	AL,0FFH			; Set WPCOMP (just FF for none)
+	ADD	DX,ATA_FEAT-ATA_STAT
+	MOV	AL,0FFH			; Set WPCOMP (FFH for none)
 	OUT	DX,AL
 	POP	AX			; Set sector count register
 	INC	DX
@@ -179,7 +186,7 @@ SetCHS:
 ; Destroys: None						:
 ;								:
 ; Returns:							:
-;	DX	I/O port of ATA channel				:
+;	DX	I/O port of ATA channel			:
 ;---------------------------------------------------------------:
 SendCMD:
 	PUSH	AX
@@ -191,9 +198,11 @@ SendCMD:
 	PUSH	CX
 	SHR	DL,1
 	MOV	CL,DL
-	MOV	AL,1
+%ifndef DONT_USE_IRQ
+	MOV	AL,1			; Set IRQ pending bit
 	SHL	AL,CL
 	OR	ES:ATA_STATUS,AL
+%endif	; DONT_USE_IRQ
 	POP	CX
 ;-----	Issue command
 	CALL	GetIO			; Get IO port
@@ -206,7 +215,7 @@ SendCMD:
 
 ;---------------------------------------------------------------:
 ; =ReadBLK							:
-;	Read a data block from the hard drive using PIO.	:
+;	Read a data block from the hard drive via PIO.		:
 ;								:
 ; Arguments:							:
 ;	DX	Base I/O address (ie. 01F0H)			:
@@ -224,12 +233,26 @@ ReadBLK:
 	JZ	.waitdrq
 	SUB	DX,ATA_STAT		; Adjust to data port
 	MOV	CX,0100H		; 256 words, 512 bytes
+%ifndef TARGET_XT
 	REP	INSW			; Fetch the block
+%else
+;-----	Two 8-bit reads from 16-bit expander
+.blkloop:
+	IN	AL,DX			; Read lo-byte- asserts ATA /RD signal
+	MOV	AH,AL
+	ADD	DX,08H
+	IN	AL,DX			; Then hi-byte
+	XCHG	AH,AL
+	STOSW
+	ADD	DX,-08H
+	DEC	CX
+	JNZ	.blkloop
+%endif	; TARGET_XT
 	RET
 
 ;---------------------------------------------------------------:
 ; =WriteBLK							:
-;	Write a data block to the hard drive using PIO.		:
+;	Write a data block to the hard drive via PIO.		:
 ;								:
 ; Arguments:							:
 ;	DX	Base I/O address (ie. 01F0H)			:
@@ -246,7 +269,21 @@ WriteBLK:
 	JZ	.drqwait
 	SUB	DX,ATA_STAT		; Adjust back to data port
 	MOV	CX,0100H		; 256 words, 512 bytes
+%ifndef TARGET_XT
 	REP	OUTSW			; Write the block
+%else
+;-----	Two 8-bit writes to 16-bit expander
+.blkloop:
+	LODSW
+	XCHG	AH,AL			; Write hi-byte first
+	ADD	DX,08H
+	OUT	DX,AL
+	MOV	AL,AH			; Then lo-byte- asserts ATA /WR signal
+	ADD	DX,-08H
+	OUT	DX,AL
+	DEC	CX
+	JNZ	.blkloop
+%endif	; TARGET_XT
 	RET
 
 ;---------------------------------------------------------------:
@@ -282,7 +319,6 @@ WaitRDY:
 	CALL	GetIO
 	AND	DH,0FH
 	ADD	DX,ATA_CT_ASTAT
-	IN	AL,DX
 .bsywait:
 	CMP	ES:TIMER_LOW+2,CX
 	JB	.cont
@@ -292,7 +328,7 @@ WaitRDY:
 	JMP	.done
 .cont:
 	IN	AL,DX
-	TEST	AL,STAT_BUSY
+	AND	AL,STAT_BUSY
 	JNZ	.bsywait
 .done:
 	SUB	DX,ATA_CT_ASTAT
@@ -301,7 +337,7 @@ WaitRDY:
 	RET
 
 ;---------------------------------------------------------------:
-; =WaitINT							:
+; =WaitATA							:
 ;	Wait for disk interrupt to occur. Sets DISK_STATUS	:
 ;	to TIME_OUT if no IRQ occurred during the last disk	:
 ;	operation. Normally used for device detection.		:
@@ -320,7 +356,7 @@ WaitRDY:
 ;	DX		Data port of selected drive		:
 ;	ES:DISK_STATUS	Updated to TIME_OUT on IRQ timeout	:
 ;---------------------------------------------------------------:
-WaitINT:
+WaitATA:
 	PUSH	AX
 	PUSH	CX
 ;-----	Obtain channel number
@@ -330,25 +366,51 @@ WaitINT:
 	MOV	CL,AL
 	MOV	AH,1			; Set pending bit
 	SHL	AH,CL
-;-----	Wait until IRQ occurs
+;-----	Get timer counter addresses
 	PUSH	AX
-	MOV	AX,18
+	MOV	AX,18			; Roughly 18.2Hz (timer rate)
 	MUL	BX
 	MOV	CX,DX			; Move upper word to DX
 	ADD	AX,ES:TIMER_LOW		; Load BDA counter
 	ADC	CX,ES:TIMER_LOW+2
 	MOV	BX,AX
+	MOV	AX,ES:TIMER_LOW
+	MOV	DX,ES:TIMER_LOW+2
 	POP	AX
+;-----	Wait until drive responds
 	CALL	GetIO			; Load I/O port
-	AND	DH,0FH			; Mask out IRQ bit
+	AND	DH,0FH			; Mask out IRQ bits
 	ADD	DX,ATA_CT_ASTAT		; Adjust to alternate status register
 .wait:
+%ifndef DONT_USE_IRQ
+;-----	IRQ based wait 
 	TEST	ES:ATA_STATUS,AH	; Has interrupt occurred?
 	JZ	.waitdone
 	CMP	ES:TIMER_LOW,BX		; Compare ticks to test timeout
 	JB	.wait
 	CMP	ES:TIMER_LOW+2,CX
 	JB	.wait
+%else
+;-----	Polling based wait
+	IN	AL,DX			; Read alternate status port
+	TEST	AL,STAT_BUSY		; Check BSY=0
+	JZ	.waitrdy		; ... then advance to data ready wait
+	CMP	ES:TIMER_LOW,BX		; Compare ticks to test timeout
+	JB	.wait
+	CMP	ES:TIMER_LOW+2,CX
+	JB	.wait
+.waitrdy:
+	AND	AL,STAT_ERR		; Check error condition
+	JNZ	.waitdone		; Skip DRDY on error
+.wait2:
+	IN	AL,DX			; Read alternate status port
+	TEST	AL,STAT_DRDY		; Check DRDY=1
+	JNZ	.waitdone
+	CMP	ES:TIMER_LOW,BX		; Compare ticks to test timeout
+	JB	.wait2
+	CMP	ES:TIMER_LOW+2,CX
+	JB	.wait2
+%endif
 	MOV	BYTE ES:DISK_STATUS,TIME_OUT	; Set timeout condition
 .waitdone:
 	SUB	DX,ATA_CT_ASTAT		; Revert back to base address
@@ -357,13 +419,14 @@ WaitINT:
 	RET
 
 ;---------------------------------------------------------------:
-; =IntHandler							:
+; =IntHandler (AT-only)							:
 ;	Hard disk interrupt handler. The hard disk posts a	:
 ;	hardware interrupt when a disk operation has completed.	:
 ;								:
 ;	The handler additionally posts a busy done call on	:
 ;	INT 15h for multi-tasking operating systems.		:
 ;---------------------------------------------------------------:
+%ifndef DONT_USE_IRQ
 IntHandler:
 	PUSH	AX
 	PUSH	DS
@@ -391,7 +454,9 @@ IntHandler:
 	POP	AX
 ;-----	Issue EOI
 	MOV	AL,EOI
+%ifndef TARGET_XT
 	OUT	INTB00,AL		; Slave 8259
+%endif	; TARGET_XT
 	OUT	INTA00,AL		; Then master 8259
 ;-----	Post interrupt then return
 	POP	ES
@@ -401,3 +466,4 @@ IntHandler:
 	INT	015H
 	POP	AX
 	IRET
+%endif	; DONT_USE_IRQ

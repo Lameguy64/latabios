@@ -194,10 +194,15 @@ GET_PARAMS:
 	PUSH	AX
 	SUB	AH,AH			; Get (normalized) drive number
 	MOV	AL,DL			; Get (normalized) drive number
+%ifndef TARGET_XT
 	SHL	AL,2			; Multiply by 4
-%ifdef SENSIBLE
+%else
+	SHL	AL,1
+	SHL	AL,1
+%endif	; TARGET_XT
+%ifdef SINGLE_DRV
 	ADD	AX,PARM_TBL
-%endif
+%endif	; SINGLE_DRV
 	MOV	SI,AX			; Move to SI pointer
 	MOV	CL,[ES:SI+diskparm.sects]
 	MOV	DH,[ES:SI+diskparm.heads]
@@ -205,7 +210,14 @@ GET_PARAMS:
 	SUB	AX,2			; Deduce two cylinders
 	DEC	DH			; Deduce one head
 	MOV	CH,AL
+%ifndef TARGET_XT
 	SHL	AH,6
+%else
+	PUSH	CX
+	MOV	CL,6
+	SHL	AH,CL
+	POP	CX
+%endif	; TARGET_XT
 	OR	CL,AH
 	MOV	DL,ES:DISK_NUM
 	SUB	BL,BL
@@ -278,8 +290,13 @@ DO_DISKOP:
 ;-----	Set PORT_OFF from drive map table
 	SUB	AH,AH			; Copy drive number
 	MOV	AL,DL
-%ifndef SENSIBLE
+%ifndef SINGLE_DRV
+%ifndef TARGET_XT
 	SHL	AX,2			; Multiply by 4
+%else
+	SHL	AX,1
+	SHL	AX,1
+%endif	; TARGET_XT
 	MOV	SI,DMAP_TBL		; Load pointer to map table
 	ADD	SI,AX			; Apply offset
 	MOV	AL,[ES:SI+3]		; Load upper byte
@@ -291,7 +308,7 @@ DO_DISKOP:
 	AND	DL,07H
 	OR	AL,DL
 	MOV	[ES:PORT_OFF],AL
-%endif
+%endif	; SINGLE_DRV
 ;-----	Jump to specified function number
 	POP	AX
 	PUSH	CX
@@ -330,7 +347,12 @@ DISK_READ:
 	SUB	AH,AH
 	MOV	AL,[ES:PORT_OFF]
 	AND	AL,07H
+%ifndef TARGET_XT
 	SHL	AX,2			; Multiply number by 4
+%else
+	SHL	AX,1
+	SHL	AX,1
+%endif	; TARGET_XT
 	MOV	SI,DPRM_TBL		; Base offset of internal param. table
 	ADD	SI,AX
 .trkloop:
@@ -378,7 +400,7 @@ DISK_READ:
 	MOV	AL,[BP+wrk.ndone]	; Load current sectors read total
 	ADD	AL,BL
 	MOV	AH,ES:DISK_STATUS	; Check if error occurred
-	AND	AH,AH			; WaitINT sets DISK_STATUS on timeout
+	AND	AH,AH			; WaitDisk sets DISK_STATUS on timeout
 	JNZ	ERR_TIMEOUT
 ;-----	Set wait bit for next IRQ
 	INC	BL			; Increment sectors read
@@ -458,7 +480,12 @@ DISK_WRITE:
 	SUB	AH,AH
 	MOV	AL,[ES:PORT_OFF]
 	AND	AL,07H
+%ifndef TARGET_XT
 	SHL	AX,2			; Multiply number by 4
+%else
+	SHL	AX,1
+	SHL	AX,1
+%endif	; TARGET_XT
 	MOV	DI,DPRM_TBL		; Base offset of internal param. table
 	ADD	DI,AX
 	CLD				; Clear direction flag
@@ -509,7 +536,7 @@ DISK_WRITE:
 	MOV	AL,[BP+wrk.nsects]
 	ADD	AL,BL
 	MOV	AH,ES:DISK_STATUS	; Check if error occurred
-	AND	AH,AH			; WaitINT sets DISK_STATUS on timeout
+	AND	AH,AH			; WaitDisk sets DISK_STATUS on timeout
 	JNZ	ERR_TIMEOUT
 	ADD	DX,ATA_STAT		; Adjust to status register
 	MOV	AH,AL			; Transfer sector total
@@ -566,7 +593,12 @@ DISK_VERIFY:
 	SUB	AH,AH
 	MOV	AL,[ES:PORT_OFF]
 	AND	AL,07H
+%ifndef TARGET_XT
 	SHL	AX,2			; Multiply number by 4
+%else
+	SHL	AX,1
+	SHL	AX,1
+%endif	; TARGET_XT
 	MOV	SI,DPRM_TBL		; Base offset of internal param. table
 	ADD	SI,AX
 .trkloop:
@@ -611,7 +643,7 @@ DISK_VERIFY:
 ;-----	Check if operation returned an error
 	MOV	AL,[BP+wrk.nsects]
 	MOV	AH,ES:DISK_STATUS	; Check if error occurred
-	AND	AH,AH			; WaitINT sets DISK_STATUS on timeout
+	AND	AH,AH			; WaitDisk sets DISK_STATUS on timeout
 	JNZ	ERR_TIMEOUT
 	MOV	AH,AL
 	ADD	DX,ATA_NSECT		; Get sector count from drive in case
@@ -665,7 +697,13 @@ DISK_FORMAT:
 	SUB	AH,AH			; Get drive number
 	MOV	AL,[ES:PORT_OFF]	; Get port offset
 	AND	AL,07H			; Mask off other bits
+%ifndef TARGET_XT
 	SHL	AX,3			; Multiply by 8
+%else
+	SHL	AX,1
+	SHL	AX,1
+	SHL	AX,1
+%endif	; TARGET_XT
 	MOV	DI,DPRM_TBL		; Load offset to drive parameter table
 ;-----	Wait ready
 ;	SUB	BH,BH			; Load standard timeout value
@@ -692,7 +730,7 @@ DISK_FORMAT:
 ;-----	Check result of operation
 	MOV	AL,BL			; AL will return sectors per track 
 	MOV	AH,ES:DISK_STATUS	; Check if error occurred
-	AND	AH,AH			; WaitINT sets DISK_STATUS on timeout
+	AND	AH,AH			; WaitDisk sets DISK_STATUS on timeout
 	JNZ	ERR_TIMEOUT
 	ADD	DX,ATA_STAT		; Adjust to status register
 	MOV	CX,15			; Guarantees acknowledge
@@ -733,7 +771,7 @@ DISK_SEEK:
 	CALL	WaitRDY
 	SUB	AL,AL
 	MOV	AH,ES:DISK_STATUS	; Check if error occurred
-	AND	AH,AH			; WaitINT sets DISK_STATUS on timeout
+	AND	AH,AH			; WaitDisk sets DISK_STATUS on timeout
 	JNZ	ERR_TIMEOUT
 	ADD	DX,ATA_STAT		; Adjust to status register
 	MOV	AH,AL
@@ -763,7 +801,7 @@ DISK_RECAL:
 	CALL	WaitRDY
 	SUB	AL,AL
 	MOV	AH,ES:DISK_STATUS	; Check if error occurred
-	AND	AH,AH			; WaitINT sets DISK_STATUS on timeout
+	AND	AH,AH			; WaitDisk sets DISK_STATUS on timeout
 	JNZ	ERR_TIMEOUT
 	ADD	DX,ATA_STAT		; Adjust to status register
 	MOV	AH,AL
@@ -867,7 +905,16 @@ ERR_TIMEOUT:
 PrepParams:
 	MOV	AH,CL			; Use AH as sector number
 	AND	AH,03FH			; Mask off upper bits for cylinder
+%ifndef TARGET_XT
 	SHR	CL,6			; Shift upper 2 bits of cylinder down
+%else
+	SHR	CL,1
+	SHR	CL,1
+	SHR	CL,1
+	SHR	CL,1
+	SHR	CL,1
+	SHR	CL,1
+%endif	; TARGET_XT
 	XCHG	CH,CL			; Exchange to correct byte order
 	AND	AH,AH			; Check if sector number zero
 	JZ	.badret
@@ -875,10 +922,15 @@ PrepParams:
 	PUSH	AX
 	SUB	AH,AH
 	MOV	AL,DL
+%ifndef TARGET_XT
 	SHL	AX,2
-%ifdef SENSIBLE
+%else
+	SHL	AX,1
+	SHL	AX,1
+%endif	; TARGET_XT
+%ifdef SINGLE_DRV
 	ADD	AX,PARM_TBL
-%endif
+%endif	; SINGLE_DRV
 	MOV	SI,AX
 	POP	AX
 ;-----	Challenge the parameters
@@ -927,7 +979,12 @@ PrepParams:
 	SUB	AH,AH
 	MOV	AL,[ES:PORT_OFF]	; Get drive number
 	AND	AL,07H			; Mask-in only drive number
+%ifndef TARGET_XT
 	SHL	AL,2			; Multiply by 4
+%else
+	SHL	AL,1
+	SHL	AL,1
+%endif	; TARGET_XT
 	MOV	SI,DPRM_TBL		; Load parameter table
 	ADD	SI,AX			; Apply offset
 	POP	AX

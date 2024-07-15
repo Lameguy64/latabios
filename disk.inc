@@ -25,9 +25,20 @@ ATA_CMD		EQU	07H		; Command (W)
 ; ATA Registers (relative to Control port)			:
 ;---------------------------------------------------------------:
 
+%ifndef TARGET_XT
+
+;-----	AT port offsets
 ATA_CT_ASTAT	EQU	0206H		; Alternate status register (R)
 ATA_CT_DCTRL	EQU	0206H		; Device control register (W)
-ATA_CT_DADDR	EQU	0207H		; Drive Address Register (R)
+ATA_CT_DADDR	EQU	0207H		; Drive Address Register (R) (not used)
+
+%else
+
+;-----	XT-IDE offsets (base addr. 300H)
+ATA_CT_ASTAT	EQU	0EH		; Alternate status register (R)
+ATA_CT_DCTRL	EQU	0EH		; Device control register (W)
+
+%endif ; TARGET_XT
 
 ;---------------------------------------------------------------:
 ; ATA Commands							:

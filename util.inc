@@ -49,10 +49,10 @@ PrintStr:
 	PUSH	SI
 	CLD
 	SUB	BX,BX
-	MOV	AH,0EH
 .printLoop:
+	MOV	AH,0EH			; This gets destroyed by BIOS
 	LODSB
-	OR	AL,AL
+	AND	AL,AL
 	JZ	.printExit
 	INT	010H
 	JMP	.printLoop
@@ -232,7 +232,14 @@ PrintHex:
 	DEC	CH
 	JZ	.skipLoop
 .divLoop:
+%ifndef TARGET_XT
 	SHR	AX,4
+%else
+	SHR	AX,1
+	SHR	AX,1
+	SHR	AX,1
+	SHR	AX,1
+%endif
 	DEC	CH
 	JNZ	.divLoop
 .skipLoop:
